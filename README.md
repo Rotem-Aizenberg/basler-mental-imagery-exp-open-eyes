@@ -1,6 +1,8 @@
-# LSI Visual Mental Imagery Experiment
+# LSI Visual Mental Imagery Experiment (Open-Eyes Variant)
 
-A research-grade experiment application for studying **Laser Speckle Imaging (LSI)** responses during visual mental imagery tasks. The system presents geometric shapes with synchronized audio cues, records high-speed video of a subject's tissue via a Basler industrial camera, and manages multi-participant sessions with full data logging.
+A research-grade experiment application for studying **Laser Speckle Imaging (LSI)** responses during visual mental imagery tasks with **eyes open**. The system presents geometric shapes with a red fixation cross, synchronized audio cues, records high-speed video of a subject's tissue via a Basler industrial camera, and manages multi-participant sessions with full data logging.
+
+> **Note:** This is the **open-eyes variant**. The participant keeps their eyes open throughout the experiment, fixating on a small red cross at the center of the screen. For the closed-eyes variant, see [basler-mental-imagery-exp](https://github.com/Rotem-Aizenberg/basler-mental-imagery-exp).
 
 Built with **PyQt5** (operator GUI), **PsychoPy** (frame-accurate stimulus/audio), and **pypylon/OpenCV** (camera acquisition).
 
@@ -27,8 +29,8 @@ Built with **PyQt5** (operator GUI), **PsychoPy** (frame-accurate stimulus/audio
 
 The experiment measures cerebral hemodynamic responses during mental imagery using LSCI. Participants undergo a structured protocol where they:
 
-1. **Learn** a visual shape through repeated visual + auditory presentation (training phase)
-2. **Imagine** the shape with eyes closed while audio cues mark recording intervals (measurement phase)
+1. **Learn** a visual shape through repeated visual + auditory presentation (training phase) — a red fixation cross is always visible at the center of the screen and at the center of each shape
+2. **Imagine** the shape with eyes open, fixating on the red cross, while audio cues mark recording intervals (measurement phase)
 
 A high-speed Basler camera captures tissue perfusion data during the measurement phase. The operator controls the session through a dedicated GUI window, separate from the participant's fullscreen stimulus display.
 
@@ -40,20 +42,21 @@ Each shape trial follows this sequence:
 
 | Phase | Description | Display | Audio | Camera |
 |-------|-------------|---------|-------|--------|
-| **Training** | Shape shown N times with synchronized beep | White shape on black | 440 Hz tone (vsync-synced) | Preview only |
-| **Close eyes instruction** | MP3: *"Close your eyes and be ready to imagine the shape"* | Black screen | MP3 playback | Preview only |
-| **5-second wait** | Participant prepares | Black screen | Silence | Preview only |
-| **Starting instruction** | MP3: *"Starting"* | Black screen | MP3 playback | Preview only |
-| **2-second wait** | Final preparation | Black screen | Silence | Preview only |
-| **Measurement** | N beep cycles with silence gaps | Black screen | 440 Hz tone | **Recording** |
-| **Post-measurement** | Context-dependent MP3 instruction | Black screen | MP3 playback | Stopped |
+| **Training** | Shape shown N times with synchronized beep | White shape + red fixation cross | 440 Hz tone (vsync-synced) | Preview only |
+| **Training blank** | Gap between shape flashes | Red fixation cross on black | Silence | Preview only |
+| **Be ready instruction** | MP3: *"Be ready to imagine the shape"* | Red fixation cross on black | MP3 playback | Preview only |
+| **5-second wait** | Participant prepares | Red fixation cross on black | Silence | Preview only |
+| **Starting instruction** | MP3: *"Starting"* | Red fixation cross on black | MP3 playback | Preview only |
+| **2-second wait** | Final preparation | Red fixation cross on black | Silence | Preview only |
+| **Measurement** | N beep cycles with silence gaps | Red fixation cross on black | 440 Hz tone | **Recording** |
+| **Post-measurement** | Context-dependent MP3 instruction | Red fixation cross on black | MP3 playback | Stopped |
 
 **Post-measurement instructions:**
-- More shapes remaining in this turn: *"Open your eyes"* (5s delay before next shape)
+- More shapes remaining in this turn: *"We are moving on to the next shape"* (5s delay before next shape)
 - Last shape, more participants/reps remain: *"Next participant please"*
 - Last shape of entire session: *"We have successfully completed the experiment"*
 
-**Recording timing:** Camera starts recording at the onset of the first measurement beep and stops after a silence period (`measurement_silence_duration`) following the last beep offset.
+**Recording timing:** Camera starts recording at the onset of the first measurement beep and stops after a silence period (`measurement_silence_duration`) following the last beep offset, plus a 1-second margin.
 
 ---
 
@@ -82,8 +85,8 @@ Each shape trial follows this sequence:
 ### 2. Clone and Install
 
 ```bash
-git clone https://github.com/Rotem-Aizenberg/basler-mental-imagery-exp.git
-cd basler-mental-imagery-exp
+git clone https://github.com/Rotem-Aizenberg/basler-mental-imagery-exp-open-eyes.git
+cd basler-mental-imagery-exp-open-eyes
 pip install -r requirements.txt
 ```
 
@@ -149,7 +152,7 @@ Pressing **Stop** ends the session and closes the application entirely. To start
 ## Project Structure
 
 ```
-basler-mental-imagery-exp/
+basler-mental-imagery-exp-open-eyes/
 |-- main.py                         # Entry point
 |-- requirements.txt                # Python dependencies
 |-- config/
@@ -199,9 +202,9 @@ basler-mental-imagery-exp/
 |   |-- threading_utils.py          # QThread worker with pyqtSignal
 |   +-- timing.py                   # High-precision sleep utility
 +-- external_instruction_recordings/
-    |-- close_your_eyes.mp3
+    |-- be_ready_to_imagine_the_shape.mp3
     |-- starting.mp3
-    |-- Open_your_eyes.mp3
+    |-- we_are_moving_on_to_the_next_shape.mp3
     |-- next_participant_please.mp3
     +-- We_have_successfully_completed.mp3
 ```

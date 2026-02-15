@@ -50,7 +50,7 @@ class ProgressPanel(QGroupBox):
         phase_names = {
             TrialPhase.TRAINING_SHAPE: "Training - Shape Display",
             TrialPhase.TRAINING_BLANK: "Training - Blank",
-            TrialPhase.INSTRUCTION_CLOSE_EYES: "Instruction - Close Eyes",
+            TrialPhase.INSTRUCTION_BE_READY: "Instruction - Be Ready",
             TrialPhase.INSTRUCTION_WAIT: "Instruction - Waiting",
             TrialPhase.INSTRUCTION_STARTING: "Instruction - Starting",
             TrialPhase.INSTRUCTION_READY: "Instruction - Ready",

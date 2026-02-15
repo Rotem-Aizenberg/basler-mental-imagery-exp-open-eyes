@@ -5,8 +5,12 @@ Pre-generates all tone buffers as PsychoPy Sound objects so that
 and fires at the exact vsync moment.
 
 Also loads MP3 instruction files for non-frame-critical playback
-(close_your_eyes, starting, open_your_eyes, next_participant_please,
+(be_ready, starting, moving_on, next_participant_please,
 experiment_completed).
+
+Open-eyes variant: uses "be ready to imagine the shape" instead of
+"close your eyes", and "we are moving on to the next shape" instead
+of "open your eyes".
 """
 
 from __future__ import annotations
@@ -25,9 +29,9 @@ logger = logging.getLogger(__name__)
 
 # Map instruction names to actual MP3 filenames
 _INSTRUCTION_FILES = {
-    "close_your_eyes": "close_your_eyes.mp3",
+    "be_ready": "be_ready_to_imagine_the_shape.mp3",
     "starting": "starting.mp3",
-    "open_your_eyes": "Open_your_eyes.mp3",
+    "moving_on": "we_are_moving_on_to_the_next_shape.mp3",
     "next_participant_please": "next_participant_please.mp3",
     "experiment_completed": "We_have_successfully_completed.mp3",
 }

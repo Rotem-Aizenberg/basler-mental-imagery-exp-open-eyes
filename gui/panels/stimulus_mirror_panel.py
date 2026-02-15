@@ -38,32 +38,35 @@ class _MirrorCanvas(QWidget):
         if state.startswith("shape:"):
             shape_name = state.split(":")[1]
             self._draw_shape(p, shape_name, w, h)
+            self._draw_fixation_cross(p, w, h)
 
         elif state == "blank":
-            pass  # Already black
+            self._draw_fixation_cross(p, w, h)
 
         elif state == "recording":
-            # Red dot + text
+            self._draw_fixation_cross(p, w, h)
+            # Red dot + text in corner
             p.setPen(QColor(255, 255, 255))
-            p.setFont(QFont("Segoe UI", 14, QFont.Bold))
-            p.drawText(0, 0, w, h, Qt.AlignCenter, "Recording...")
+            p.setFont(QFont("Segoe UI", 10))
+            p.drawText(w - 100, 5, 95, 20, Qt.AlignRight, "Recording")
             p.setBrush(QColor(255, 0, 0))
             p.setPen(Qt.NoPen)
-            p.drawEllipse(w // 2 - 60, h // 2 - 30, 12, 12)
+            p.drawEllipse(w - 108, 9, 10, 10)
 
         elif state.startswith("instruction:"):
+            self._draw_fixation_cross(p, w, h)
             instruction = state.split(":")[1]
             text_map = {
-                "close_eyes": "Close your eyes...",
+                "be_ready": "Be ready to imagine...",
                 "starting": "Starting...",
-                "open_your_eyes": "Open your eyes",
+                "moving_on": "Moving on to next shape...",
                 "next_participant": "Next participant...",
                 "experiment_completed": "Experiment completed!",
             }
             text = text_map.get(instruction, instruction)
             p.setPen(QColor(255, 255, 255))
-            p.setFont(QFont("Segoe UI", 12))
-            p.drawText(0, 0, w, h, Qt.AlignCenter | Qt.TextWordWrap, text)
+            p.setFont(QFont("Segoe UI", 10))
+            p.drawText(0, h - 30, w, 25, Qt.AlignCenter | Qt.TextWordWrap, text)
 
         elif state == "idle":
             p.setPen(QColor(128, 128, 128))
@@ -76,6 +79,18 @@ class _MirrorCanvas(QWidget):
             p.drawText(0, 0, w, h, Qt.AlignCenter, state)
 
         p.end()
+
+    def _draw_fixation_cross(self, p: QPainter, w: int, h: int) -> None:
+        """Draw a small red fixation cross at center."""
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(255, 0, 0))
+        cx, cy = w // 2, h // 2
+        arm = max(8, min(w, h) // 12)  # scale with widget size
+        thick = max(2, arm // 4)
+        # Horizontal bar
+        p.drawRect(cx - arm, cy - thick // 2, arm * 2, thick)
+        # Vertical bar
+        p.drawRect(cx - thick // 2, cy - arm, thick, arm * 2)
 
     def _draw_shape(self, p: QPainter, shape: str, w: int, h: int) -> None:
         """Draw a white shape on black background."""
@@ -134,6 +149,6 @@ class StimulusMirrorPanel(QGroupBox):
 
         Args:
             state: e.g. "shape:circle", "blank", "recording",
-                   "instruction:close_eyes", "idle"
+                   "instruction:be_ready", "idle"
         """
         self._canvas.set_state(state)

@@ -17,11 +17,11 @@
     "training_shape_duration": 1.5,
     "training_blank_duration": 0.5,
     "training_repetitions": 5,
-    "close_eyes_cue_duration": 0.5,
+    "prepare_cue_duration": 0.5,
     "measurement_beep_duration": 1.5,
     "measurement_silence_duration": 0.5,
     "measurement_repetitions": 5,
-    "open_eyes_cue_duration": 0.5
+    "transition_cue_duration": 0.5
   },
   "audio": {
     "sample_rate": 44100,

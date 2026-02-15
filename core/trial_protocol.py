@@ -1,4 +1,4 @@
-"""Single-shape trial with PsychoPy frame-accurate timing.
+"""Single-shape trial with PsychoPy frame-accurate timing (open-eyes variant).
 
 Timing precision strategy
 -------------------------
@@ -18,11 +18,11 @@ PsychoPy provides hardware-level synchronisation:
 3. Tone buffers are pre-generated at exactly ``n_frames * frame_duration``
    seconds, so audio and visual are inherently duration-matched.
 
-New instruction sequence (replaces old close/open-eyes cue tones):
-    1. Training phase (unchanged)
-    2. play close_your_eyes.mp3 → wait 5s → play starting.mp3 → wait 2s
-    3. Measurement phase (camera starts at first beep, stops at last beep offset)
-    4. Post-measurement MP3 based on context (open_your_eyes / next_participant / completed)
+Open-eyes variant instruction sequence:
+    1. Training phase — shape with red fixation cross, blank frames show cross only
+    2. play be_ready.mp3 → wait 5s → play starting.mp3 → wait 2s
+    3. Measurement phase — fixation cross visible, camera records
+    4. Post-measurement MP3 based on context (moving_on / next_participant / completed)
 """
 
 from __future__ import annotations
@@ -73,15 +73,15 @@ class TrialProtocol:
         self._n_silence = stim_window.duration_to_frames(timing.measurement_silence_duration)
 
         # Instruction wait durations (frame-counted for consistency)
-        self._n_close_eyes_wait = stim_window.duration_to_frames(5.0)
+        self._n_prepare_wait = stim_window.duration_to_frames(5.0)
         self._n_starting_wait = stim_window.duration_to_frames(2.0)
         self._n_recording_margin = stim_window.duration_to_frames(1.0)
 
         logger.info(
             "Frame counts — shape:%d blank:%d beep:%d silence:%d "
-            "close_wait:%d start_wait:%d",
+            "prepare_wait:%d start_wait:%d",
             self._n_shape, self._n_blank, self._n_beep,
-            self._n_silence, self._n_close_eyes_wait, self._n_starting_wait,
+            self._n_silence, self._n_prepare_wait, self._n_starting_wait,
         )
 
     def request_abort(self) -> None:
@@ -171,30 +171,33 @@ class TrialProtocol:
                 "TRAINING_SHAPE_OFF", subject, shape.value, str(rep),
                 f"flash_{i+1}",
             )
-            self._win.flip()  # Black frame
+            self._win.draw_fixation_cross()
+            self._win.flip()  # Fixation cross only
             _stim("blank")
 
-            # --- Blank gap (silence, black screen) ---
+            # --- Blank gap (fixation cross on black) ---
             _phase(TrialPhase.TRAINING_BLANK, t.training_blank_duration)
             for _ in range(self._n_blank - 1):
                 if self._abort:
                     return False
+                self._win.draw_fixation_cross()
                 self._win.flip()
 
-        # ===== Instruction sequence: close your eyes =====
+        # ===== Instruction sequence: be ready to imagine =====
         if self._abort:
             return False
 
-        _phase(TrialPhase.INSTRUCTION_CLOSE_EYES, 5.0)
-        _stim("instruction:close_eyes")
-        self._audio.play_instruction("close_your_eyes")
-        self._events.log("INSTRUCTION_CLOSE_EYES", subject, shape.value, str(rep))
+        _phase(TrialPhase.INSTRUCTION_BE_READY, 5.0)
+        _stim("instruction:be_ready")
+        self._audio.play_instruction("be_ready")
+        self._events.log("INSTRUCTION_BE_READY", subject, shape.value, str(rep))
 
-        # Wait 5 seconds (frame-counted)
+        # Wait 5 seconds (frame-counted, fixation cross visible)
         _phase(TrialPhase.INSTRUCTION_WAIT, 5.0)
-        for _ in range(self._n_close_eyes_wait):
+        for _ in range(self._n_prepare_wait):
             if self._abort:
                 return False
+            self._win.draw_fixation_cross()
             self._win.flip()
 
         # Play "starting" instruction
@@ -203,11 +206,12 @@ class TrialProtocol:
         self._audio.play_instruction("starting")
         self._events.log("INSTRUCTION_STARTING", subject, shape.value, str(rep))
 
-        # Wait 2 seconds
+        # Wait 2 seconds (fixation cross visible)
         _phase(TrialPhase.INSTRUCTION_READY, 2.0)
         for _ in range(self._n_starting_wait):
             if self._abort:
                 return False
+            self._win.draw_fixation_cross()
             self._win.flip()
 
         # ===== Measurement phase (camera records from first beep to last beep offset) =====
@@ -234,8 +238,9 @@ class TrialProtocol:
                 self._camera.stop_recording()
                 return False
 
-            # --- Beep start at vsync (screen stays black) ---
+            # --- Beep start at vsync (fixation cross visible) ---
             _phase(TrialPhase.MEASUREMENT_BEEP, t.measurement_beep_duration)
+            self._win.draw_fixation_cross()
             self._win.call_on_flip(self._audio.play, "measurement")
             self._win.call_on_flip(
                 self._events.log,
@@ -251,9 +256,11 @@ class TrialProtocol:
                     self._audio.stop("measurement")
                     self._camera.stop_recording()
                     return False
+                self._win.draw_fixation_cross()
                 self._win.flip()
 
             # --- Beep stop at vsync ---
+            self._win.draw_fixation_cross()
             self._win.call_on_flip(self._audio.stop, "measurement")
             self._win.flip()
 
@@ -264,6 +271,7 @@ class TrialProtocol:
                 if self._abort:
                     self._camera.stop_recording()
                     return False
+                self._win.draw_fixation_cross()
                 self._win.flip()
 
         # Extra 1-second margin before stopping recording
@@ -271,6 +279,7 @@ class TrialProtocol:
             if self._abort:
                 self._camera.stop_recording()
                 return False
+            self._win.draw_fixation_cross()
             self._win.flip()
 
         # Stop recording after margin
@@ -283,15 +292,15 @@ class TrialProtocol:
         # ===== Post-measurement instruction =====
         # Use "experiment_completed" ONLY if this is truly the last item
         # in the entire session queue. Otherwise use "next_participant_please"
-        # (even between reps of the same participant) or "open_your_eyes"
+        # (even between reps of the same participant) or "moving_on"
         # (between shapes within a turn).
         _phase(TrialPhase.INSTRUCTION_POST, 5.0)
 
         if not is_last_shape:
             # More shapes remain for this subject's turn
-            _stim("instruction:open_your_eyes")
-            self._audio.play_instruction("open_your_eyes")
-            self._events.log("INSTRUCTION_OPEN_EYES", subject, shape.value, str(rep))
+            _stim("instruction:moving_on")
+            self._audio.play_instruction("moving_on")
+            self._events.log("INSTRUCTION_MOVING_ON", subject, shape.value, str(rep))
             # Wait 5 seconds before next shape training begins
             precise_sleep(5.0)
         elif is_last_queue_item:

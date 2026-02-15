@@ -38,6 +38,16 @@ class StimulusWindow:
         )
         self._stims: Dict[str, object] = {}
 
+        # Create red fixation cross (two thin rectangles forming a +)
+        self._fixation_h = visual.Rect(
+            self._win, width=0.06, height=0.008,
+            fillColor="red", lineColor="red", units="height",
+        )
+        self._fixation_v = visual.Rect(
+            self._win, width=0.008, height=0.06,
+            fillColor="red", lineColor="red", units="height",
+        )
+
         # Show "Get ready" message while measuring frame rate
         self._show_message("Get ready")
         self._frame_rate = self._measure_frame_rate(dev_mode)
@@ -116,11 +126,18 @@ class StimulusWindow:
         self._stims[shape.value] = create_shape_stim(self._win, shape)
         logger.debug("Prepared stimulus: %s", shape.value)
 
+    def draw_fixation_cross(self) -> None:
+        """Draw the red fixation cross to the back-buffer (does NOT flip)."""
+        self._fixation_h.draw()
+        self._fixation_v.draw()
+
     def draw_shape(self, shape_name: str) -> None:
-        """Draw a pre-built shape to the back-buffer (does NOT flip)."""
+        """Draw a pre-built shape to the back-buffer with fixation cross on top (does NOT flip)."""
         stim = self._stims.get(shape_name)
         if stim:
             stim.draw()
+        # Draw fixation cross on top of shape so it's visible at center
+        self.draw_fixation_cross()
 
     def call_on_flip(self, func, *args, **kwargs) -> None:
         """Register a callback to fire at the exact vsync moment.

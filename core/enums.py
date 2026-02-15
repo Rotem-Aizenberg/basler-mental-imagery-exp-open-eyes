@@ -19,11 +19,11 @@ class TrialPhase(Enum):
     """Phases within a single shape trial."""
     TRAINING_SHAPE = auto()        # Shape visible on screen + beep
     TRAINING_BLANK = auto()        # Blank screen between training flashes
-    INSTRUCTION_CLOSE_EYES = auto()  # MP3: "close your eyes..."
-    INSTRUCTION_WAIT = auto()      # Silence after close-eyes instruction
+    INSTRUCTION_BE_READY = auto()    # MP3: "be ready to imagine the shape"
+    INSTRUCTION_WAIT = auto()      # Silence after be-ready instruction
     INSTRUCTION_STARTING = auto()  # MP3: "starting"
     INSTRUCTION_READY = auto()     # Short wait after "starting"
-    MEASUREMENT_BEEP = auto()      # Beep during measurement (eyes closed, camera recording)
+    MEASUREMENT_BEEP = auto()      # Beep during measurement (eyes open, camera recording)
     MEASUREMENT_SILENCE = auto()   # Silence between measurement beeps
     INSTRUCTION_POST = auto()      # Post-measurement MP3 (open eyes / next participant / completed)
     INTER_TRIAL = auto()           # Brief gap between shapes

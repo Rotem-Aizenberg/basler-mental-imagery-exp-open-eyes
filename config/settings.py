@@ -28,11 +28,11 @@ class TimingSettings:
     training_shape_duration: float = 1.5
     training_blank_duration: float = 0.5
     training_repetitions: int = 5
-    close_eyes_cue_duration: float = 0.5
+    prepare_cue_duration: float = 0.5
     measurement_beep_duration: float = 1.5
     measurement_silence_duration: float = 0.5
     measurement_repetitions: int = 5
-    open_eyes_cue_duration: float = 0.5
+    transition_cue_duration: float = 0.5
 
     @property
     def training_phase_duration(self) -> float:
@@ -50,9 +50,9 @@ class TimingSettings:
     def total_trial_duration(self) -> float:
         return (
             self.training_phase_duration
-            + self.close_eyes_cue_duration
+            + self.prepare_cue_duration
             + self.measurement_phase_duration
-            + self.open_eyes_cue_duration
+            + self.transition_cue_duration
         )
 
 

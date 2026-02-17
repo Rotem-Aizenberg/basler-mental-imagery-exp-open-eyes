@@ -205,6 +205,9 @@ class ExperimentSettingsDialog(QDialog):
         if errors:
             QMessageBox.warning(self, "Validation Error", "\n".join(errors))
             return
+        # Always persist the output folder for next session
+        self._memory.last_output_folder = self._config.output_base_dir
+        self._memory.save()
         self.accept()
 
     def apply_to_config(self, config: ExperimentConfig) -> None:

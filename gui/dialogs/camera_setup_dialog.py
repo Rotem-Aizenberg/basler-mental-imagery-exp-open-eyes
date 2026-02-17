@@ -66,7 +66,9 @@ class CameraSetupDialog(QDialog):
         splitter.addWidget(self._preview)
 
         # Bottom: settings
-        self._settings_panel = CameraSettingsPanel(self._config.camera)
+        self._settings_panel = CameraSettingsPanel(
+            self._config.camera, dev_mode=self._dev_mode,
+        )
         splitter.addWidget(self._settings_panel)
 
         # Give more space to preview by default

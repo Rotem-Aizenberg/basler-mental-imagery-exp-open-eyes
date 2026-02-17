@@ -20,6 +20,9 @@ class CameraSettings:
     gain_db: float = 17.7
     target_frame_rate: float = 500.0
     playback_fps: float = 500.0
+    offset_x: int = -1          # -1 = auto-center ROI
+    offset_y: int = -1          # -1 = auto-center ROI
+    gamma: float = 1.0          # 1.0 = linear (no gamma correction)
 
 
 @dataclass

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PyQt5.QtWidgets import (
-    QGroupBox, QFormLayout, QSpinBox, QDoubleSpinBox, QComboBox,
+    QGroupBox, QFormLayout, QSpinBox, QDoubleSpinBox, QComboBox, QLabel,
 )
 
 from config.settings import CameraSettings
@@ -12,9 +12,10 @@ from config.settings import CameraSettings
 class CameraSettingsPanel(QGroupBox):
     """Editable camera parameter controls."""
 
-    def __init__(self, settings: CameraSettings, parent=None):
+    def __init__(self, settings: CameraSettings, dev_mode: bool = False, parent=None):
         super().__init__("Camera Settings", parent)
         self._settings = settings
+        self._dev_mode = dev_mode
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -63,6 +64,47 @@ class CameraSettingsPanel(QGroupBox):
         self._fps.setToolTip("Target camera acquisition speed in fps")
         layout.addRow("Frame Rate:", self._fps)
 
+        # Lab-mode only controls (Basler pypylon parameters)
+        self._offset_x = QSpinBox()
+        self._offset_x.setRange(-1, 1440)
+        self._offset_x.setSingleStep(2)
+        self._offset_x.setValue(self._settings.offset_x)
+        self._offset_x.setToolTip(
+            "ROI horizontal offset in pixels (-1 = auto-center on sensor)"
+        )
+        self._offset_x_label = QLabel("Offset X:")
+        layout.addRow(self._offset_x_label, self._offset_x)
+
+        self._offset_y = QSpinBox()
+        self._offset_y.setRange(-1, 1080)
+        self._offset_y.setSingleStep(2)
+        self._offset_y.setValue(self._settings.offset_y)
+        self._offset_y.setToolTip(
+            "ROI vertical offset in pixels (-1 = auto-center on sensor)"
+        )
+        self._offset_y_label = QLabel("Offset Y:")
+        layout.addRow(self._offset_y_label, self._offset_y)
+
+        self._gamma = QDoubleSpinBox()
+        self._gamma.setRange(0.0, 4.0)
+        self._gamma.setDecimals(2)
+        self._gamma.setSingleStep(0.1)
+        self._gamma.setValue(self._settings.gamma)
+        self._gamma.setToolTip(
+            "Image gamma correction (1.0 = linear, no correction)"
+        )
+        self._gamma_label = QLabel("Gamma:")
+        layout.addRow(self._gamma_label, self._gamma)
+
+        # Hide lab-mode controls in dev mode
+        if self._dev_mode:
+            for widget in (
+                self._offset_x, self._offset_x_label,
+                self._offset_y, self._offset_y_label,
+                self._gamma, self._gamma_label,
+            ):
+                widget.setVisible(False)
+
         self.setLayout(layout)
 
     def apply_to_settings(self, settings: CameraSettings) -> CameraSettings:
@@ -77,4 +119,7 @@ class CameraSettingsPanel(QGroupBox):
             gain_db=self._gain.value(),
             target_frame_rate=self._fps.value(),
             playback_fps=self._fps.value(),
+            offset_x=self._offset_x.value(),
+            offset_y=self._offset_y.value(),
+            gamma=self._gamma.value(),
         )

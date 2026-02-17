@@ -101,18 +101,29 @@ class BaslerCamera(CameraBackend):
     def _apply_settings(self, s: CameraSettings) -> None:
         cam = self._camera
 
-        # ROI: reset offsets, set size, then center
+        # ROI: reset offsets, set size, then apply offset
         cam.OffsetX.SetValue(0)
         cam.OffsetY.SetValue(0)
         cam.Width.SetValue(s.width)
         cam.Height.SetValue(s.height)
 
-        max_w = cam.Width.GetMax()
-        max_h = cam.Height.GetMax()
-        off_x = ((max_w - s.width) // 2 // 2) * 2  # even offset
-        off_y = ((max_h - s.height) // 2 // 2) * 2
-        cam.OffsetX.SetValue(off_x)
-        cam.OffsetY.SetValue(off_y)
+        if s.offset_x >= 0:
+            # Manual offset (round to even for pypylon)
+            off_x = (s.offset_x // 2) * 2
+            cam.OffsetX.SetValue(off_x)
+        else:
+            # Auto-center ROI on sensor
+            max_w = cam.Width.GetMax()
+            off_x = ((max_w - s.width) // 2 // 2) * 2
+            cam.OffsetX.SetValue(off_x)
+
+        if s.offset_y >= 0:
+            off_y = (s.offset_y // 2) * 2
+            cam.OffsetY.SetValue(off_y)
+        else:
+            max_h = cam.Height.GetMax()
+            off_y = ((max_h - s.height) // 2 // 2) * 2
+            cam.OffsetY.SetValue(off_y)
 
         # Pixel format
         cam.PixelFormat.SetValue(s.pixel_format)
@@ -137,6 +148,12 @@ class BaslerCamera(CameraBackend):
             cam.AcquisitionFrameRate.SetValue(s.target_frame_rate)
         except Exception:
             logger.warning("Could not set frame rate, using max achievable")
+
+        # Gamma
+        try:
+            cam.Gamma.SetValue(s.gamma)
+        except Exception:
+            logger.warning("Could not set Gamma")
 
     def _grab_loop(self) -> None:
         """Continuously grab frames for preview when not recording.

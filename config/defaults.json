@@ -11,7 +11,10 @@
     "exposure_time_us": 1000.0,
     "gain_db": 17.7,
     "target_frame_rate": 500.0,
-    "playback_fps": 500.0
+    "playback_fps": 500.0,
+    "offset_x": -1,
+    "offset_y": -1,
+    "gamma": 1.0
   },
   "timing": {
     "training_shape_duration": 1.5,

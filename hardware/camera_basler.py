@@ -44,6 +44,8 @@ class BaslerCamera(CameraBackend):
         # Continuous grab thread for live preview even when not recording
         self._grab_thread: Optional[threading.Thread] = None
         self._grab_stop = threading.Event()
+        # Serialise grab-loop vs record-loop camera access
+        self._grab_lock = threading.Lock()
 
     # --- Connection ---
 
@@ -149,6 +151,7 @@ class BaslerCamera(CameraBackend):
 
         Uses StartGrabbingMax(1) for single-frame grabs at ~20 fps
         to keep the preview alive without interfering with recording.
+        The _grab_lock ensures no overlap with _record_loop.
         """
         while not self._grab_stop.is_set():
             if self._recording:
@@ -158,16 +161,20 @@ class BaslerCamera(CameraBackend):
             if not self.is_connected():
                 break
             try:
-                self._camera.StartGrabbingMax(1)
-                result = self._camera.RetrieveResult(
-                    1000, self._pylon.TimeoutHandling_Return,
-                )
-                if result and result.GrabSucceeded():
-                    frame = result.GetArray().copy()
-                    with self._frame_lock:
-                        self._latest_frame = frame
-                if result:
-                    result.Release()
+                with self._grab_lock:
+                    if self._recording:
+                        # Recording started while we waited for the lock
+                        continue
+                    self._camera.StartGrabbingMax(1)
+                    result = self._camera.RetrieveResult(
+                        1000, self._pylon.TimeoutHandling_Return,
+                    )
+                    if result and result.GrabSucceeded():
+                        frame = result.GetArray().copy()
+                        with self._frame_lock:
+                            self._latest_frame = frame
+                    if result:
+                        result.Release()
             except Exception:
                 time.sleep(0.05)
 
@@ -240,7 +247,11 @@ class BaslerCamera(CameraBackend):
             self._recording = False
             return
 
-        self._camera.StartGrabbing(self._pylon.GrabStrategy_LatestImageOnly)
+        # Acquire lock to ensure preview grab loop has finished its cycle
+        with self._grab_lock:
+            if self._camera.IsGrabbing():
+                self._camera.StopGrabbing()
+            self._camera.StartGrabbing(self._pylon.GrabStrategy_LatestImageOnly)
 
         try:
             while not self._stop_event.is_set():

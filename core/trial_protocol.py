@@ -77,6 +77,10 @@ class TrialProtocol:
         self._n_starting_wait = stim_window.duration_to_frames(2.0)
         self._n_recording_margin = stim_window.duration_to_frames(1.0)
 
+        # Extra delay between training and measurement phases
+        delay = timing.training_to_measurement_delay
+        self._n_train_to_meas_delay = stim_window.duration_to_frames(delay) if delay > 0 else 0
+
         logger.info(
             "Frame counts — shape:%d blank:%d beep:%d silence:%d "
             "prepare_wait:%d start_wait:%d",
@@ -89,7 +93,7 @@ class TrialProtocol:
 
     def run(
         self,
-        shape: Shape,
+        shape,
         subject: str,
         rep: int,
         video_path: "Path",
@@ -117,6 +121,9 @@ class TrialProtocol:
         t = self._timing
         self._abort = False
 
+        # Normalize shape to a string name (supports Shape enum or plain string)
+        shape_name = shape_name if hasattr(shape, "value") else str(shape)
+
         # Total beeps in this trial (training + measurement) for progress tracking
         total_beeps = t.training_repetitions + t.measurement_repetitions
         beep_counter = 0
@@ -135,7 +142,7 @@ class TrialProtocol:
             if on_beep_progress:
                 on_beep_progress(beep_counter, total_beeps)
 
-        self._events.log("TRIAL_START", subject, shape.value, str(rep))
+        self._events.log("TRIAL_START", subject, shape_name, str(rep))
 
         # ===== Training phase =====
         for i in range(t.training_repetitions):
@@ -143,14 +150,14 @@ class TrialProtocol:
                 return False
 
             _phase(TrialPhase.TRAINING_SHAPE, t.training_shape_duration)
-            _stim(f"shape:{shape.value}")
+            _stim(f"shape:{shape_name}")
 
             # --- Frame 1: shape appears + audio starts at vsync ---
-            self._win.draw_shape(shape.value)
+            self._win.draw_shape(shape_name)
             self._win.call_on_flip(self._audio.play, "training")
             self._win.call_on_flip(
                 self._events.log,
-                "TRAINING_SHAPE_ON", subject, shape.value, str(rep),
+                "TRAINING_SHAPE_ON", subject, shape_name, str(rep),
                 f"flash_{i+1}",
             )
             self._win.flip()
@@ -161,14 +168,14 @@ class TrialProtocol:
                 if self._abort:
                     self._audio.stop("training")
                     return False
-                self._win.draw_shape(shape.value)
+                self._win.draw_shape(shape_name)
                 self._win.flip()
 
             # --- Clear frame: shape disappears + audio stops at vsync ---
             self._win.call_on_flip(self._audio.stop, "training")
             self._win.call_on_flip(
                 self._events.log,
-                "TRAINING_SHAPE_OFF", subject, shape.value, str(rep),
+                "TRAINING_SHAPE_OFF", subject, shape_name, str(rep),
                 f"flash_{i+1}",
             )
             self._win.draw_fixation_cross()
@@ -183,6 +190,18 @@ class TrialProtocol:
                 self._win.draw_fixation_cross()
                 self._win.flip()
 
+        # ===== Optional delay between training and measurement =====
+        if self._n_train_to_meas_delay > 0:
+            if self._abort:
+                return False
+            _phase(TrialPhase.INTER_TRIAL, t.training_to_measurement_delay)
+            _stim("blank")
+            for _ in range(self._n_train_to_meas_delay):
+                if self._abort:
+                    return False
+                self._win.draw_fixation_cross()
+                self._win.flip()
+
         # ===== Instruction sequence: be ready to imagine =====
         if self._abort:
             return False
@@ -190,7 +209,7 @@ class TrialProtocol:
         _phase(TrialPhase.INSTRUCTION_BE_READY, 5.0)
         _stim("instruction:be_ready")
         self._audio.play_instruction("be_ready")
-        self._events.log("INSTRUCTION_BE_READY", subject, shape.value, str(rep))
+        self._events.log("INSTRUCTION_BE_READY", subject, shape_name, str(rep))
 
         # Wait 5 seconds (frame-counted, fixation cross visible)
         _phase(TrialPhase.INSTRUCTION_WAIT, 5.0)
@@ -204,7 +223,7 @@ class TrialProtocol:
         _phase(TrialPhase.INSTRUCTION_STARTING, 2.0)
         _stim("instruction:starting")
         self._audio.play_instruction("starting")
-        self._events.log("INSTRUCTION_STARTING", subject, shape.value, str(rep))
+        self._events.log("INSTRUCTION_STARTING", subject, shape_name, str(rep))
 
         # Wait 2 seconds (fixation cross visible)
         _phase(TrialPhase.INSTRUCTION_READY, 2.0)
@@ -229,7 +248,7 @@ class TrialProtocol:
         # Start recording right before first beep
         self._camera.start_recording(video_path, fps)
         self._events.log(
-            "RECORDING_START", subject, shape.value, str(rep),
+            "RECORDING_START", subject, shape_name, str(rep),
             str(video_path),
         )
 
@@ -244,7 +263,7 @@ class TrialProtocol:
             self._win.call_on_flip(self._audio.play, "measurement")
             self._win.call_on_flip(
                 self._events.log,
-                "MEASUREMENT_BEEP", subject, shape.value, str(rep),
+                "MEASUREMENT_BEEP", subject, shape_name, str(rep),
                 f"beep_{i+1}",
             )
             self._win.flip()
@@ -285,7 +304,7 @@ class TrialProtocol:
         # Stop recording after margin
         frames = self._camera.stop_recording()
         self._events.log(
-            "RECORDING_STOP", subject, shape.value, str(rep),
+            "RECORDING_STOP", subject, shape_name, str(rep),
             f"frames={frames}",
         )
 
@@ -300,14 +319,14 @@ class TrialProtocol:
             # More shapes remain for this subject's turn
             _stim("instruction:moving_on")
             self._audio.play_instruction("moving_on")
-            self._events.log("INSTRUCTION_MOVING_ON", subject, shape.value, str(rep))
+            self._events.log("INSTRUCTION_MOVING_ON", subject, shape_name, str(rep))
             # Wait 5 seconds before next shape training begins
             precise_sleep(5.0)
         elif is_last_queue_item:
             # Truly the last shape of the last queue item — session complete
             _stim("instruction:experiment_completed")
             self._audio.play_instruction("experiment_completed")
-            self._events.log("INSTRUCTION_COMPLETED", subject, shape.value, str(rep))
+            self._events.log("INSTRUCTION_COMPLETED", subject, shape_name, str(rep))
             # Wait for the full MP3 to finish (+ 1s buffer) so it doesn't
             # get cut off when PsychoPy closes
             mp3_dur = self._audio.get_instruction_duration("experiment_completed")
@@ -317,12 +336,12 @@ class TrialProtocol:
             # or same participant's next repetition)
             _stim("instruction:next_participant")
             self._audio.play_instruction("next_participant_please")
-            self._events.log("INSTRUCTION_NEXT_PARTICIPANT", subject, shape.value, str(rep))
+            self._events.log("INSTRUCTION_NEXT_PARTICIPANT", subject, shape_name, str(rep))
             precise_sleep(5.0)
 
         _stim("idle")
         self._events.log(
-            "TRIAL_END", subject, shape.value, str(rep),
+            "TRIAL_END", subject, shape_name, str(rep),
             f"frames={frames}",
         )
         return True

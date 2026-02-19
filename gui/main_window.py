@@ -204,6 +204,9 @@ class MainWindow(QMainWindow):
         self.queue_panel.load_queue(self.engine.queue.items)
         self.queue_panel.highlight_index(0)
 
+        # Set mirror panel shape color from config
+        self.stimulus_mirror.set_shape_color(self.config.stimulus.color_hex)
+
         # Connect engine worker signals
         worker = self.engine.start()
         worker.state_changed.connect(self._on_state_changed)

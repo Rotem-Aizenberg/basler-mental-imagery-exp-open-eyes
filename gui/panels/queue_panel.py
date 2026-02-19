@@ -35,7 +35,9 @@ class QueuePanel(QGroupBox):
         """Populate the list from queue items."""
         self._list.clear()
         for i, item in enumerate(items):
-            shapes_str = ", ".join(s.value for s in item.shapes)
+            shapes_str = ", ".join(
+                s.value if hasattr(s, "value") else str(s) for s in item.shapes
+            )
             text = f"[{i+1}] {item.subject} | Rep {item.rep} | {shapes_str}"
             list_item = QListWidgetItem(text)
             list_item.setFlags(list_item.flags() & ~Qt.ItemIsSelectable)

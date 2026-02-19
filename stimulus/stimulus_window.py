@@ -120,11 +120,17 @@ class StimulusWindow:
         """Convert a duration in seconds to the nearest frame count (>= 1)."""
         return max(1, round(duration_sec * self._frame_rate))
 
-    def prepare_shape(self, shape: Shape) -> None:
+    def prepare_shape(self, shape: Shape, color: str = "white") -> None:
         """Pre-build a PsychoPy stimulus for the given shape."""
         from stimulus.shape_renderer import create_shape_stim
-        self._stims[shape.value] = create_shape_stim(self._win, shape)
-        logger.debug("Prepared stimulus: %s", shape.value)
+        self._stims[shape.value] = create_shape_stim(self._win, shape, color=color)
+        logger.debug("Prepared stimulus: %s (color=%s)", shape.value, color)
+
+    def prepare_image(self, name: str, image_path: str) -> None:
+        """Pre-build a PsychoPy ImageStim for an image file."""
+        from stimulus.shape_renderer import create_image_stim
+        self._stims[name] = create_image_stim(self._win, image_path)
+        logger.debug("Prepared image stimulus: %s -> %s", name, image_path)
 
     def draw_fixation_cross(self) -> None:
         """Draw the red fixation cross to the back-buffer (does NOT flip)."""

@@ -24,7 +24,13 @@
     "measurement_beep_duration": 1.5,
     "measurement_silence_duration": 0.5,
     "measurement_repetitions": 5,
-    "transition_cue_duration": 0.5
+    "transition_cue_duration": 0.5,
+    "training_to_measurement_delay": 0.0
+  },
+  "stimulus": {
+    "color_hex": "#FFFFFF",
+    "use_images": false,
+    "image_paths": []
   },
   "audio": {
     "sample_rate": 44100,

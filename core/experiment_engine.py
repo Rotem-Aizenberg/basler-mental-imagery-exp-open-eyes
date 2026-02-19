@@ -82,11 +82,20 @@ class ExperimentEngine:
         self.event_logger = EventLogger(session_dir / "event_log.csv")
         self.excel_logger = ExcelLogger(session_dir / "session_log.xlsx")
 
+        # Determine stimulus names for the queue
+        stim_cfg = self.config.stimulus
+        use_images = stim_cfg.use_images and stim_cfg.image_paths
+        if use_images:
+            stim_names = [f"image_{i}" for i in range(len(stim_cfg.image_paths))]
+        else:
+            stim_names = self.config.shapes
+
         self.queue = SessionQueue(
             subjects,
             self.config.repetitions,
-            self.config.shapes,
+            stim_names,
             shape_reps_per_subsession=self.config.shape_reps_per_subsession,
+            use_raw_names=use_images,
         )
         self._state = ExperimentState.IDLE
         logger.info("Engine setup complete. Session dir: %s", session_dir)
@@ -192,10 +201,18 @@ class ExperimentEngine:
             )
             self._win = stim_window
 
-            # Prepare all shape stimuli
-            for shape_name in self.config.shapes:
-                shape_enum = Shape.from_string(shape_name)
-                stim_window.prepare_shape(shape_enum)
+            # Prepare stimuli (shapes or images)
+            stim_cfg = self.config.stimulus
+            if stim_cfg.use_images and stim_cfg.image_paths:
+                from stimulus.shape_renderer import hex_to_psychopy
+                for i, img_path in enumerate(stim_cfg.image_paths):
+                    stim_window.prepare_image(f"image_{i}", img_path)
+            else:
+                from stimulus.shape_renderer import hex_to_psychopy
+                color = hex_to_psychopy(stim_cfg.color_hex)
+                for shape_name in self.config.shapes:
+                    shape_enum = Shape.from_string(shape_name)
+                    stim_window.prepare_shape(shape_enum, color=color)
 
             audio = AudioManager(
                 self.config.audio,
@@ -282,6 +299,9 @@ class ExperimentEngine:
                     shape = item.shapes[shape_idx]
                     is_last_shape = (shape_idx == len(item.shapes) - 1)
 
+                    # Get string name for this shape/image
+                    shape_name = shape.value if hasattr(shape, "value") else str(shape)
+
                     # Track shape instance for filename
                     shape_instance = sum(
                         1 for s in item.shapes[:shape_idx + 1]
@@ -290,12 +310,12 @@ class ExperimentEngine:
 
                     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
                     video_path = self.session_mgr.trial_video_path(
-                        item.subject, item.rep, shape.value, ts,
+                        item.subject, item.rep, shape_name, ts,
                         shape_instance=shape_instance,
                     )
 
                     w.progress_text.emit(
-                        f"{item.subject} | Rep {item.rep} | {shape.value} "
+                        f"{item.subject} | Rep {item.rep} | {shape_name} "
                         f"({shape_idx + 1}/{total_shapes})"
                     )
 
@@ -322,7 +342,7 @@ class ExperimentEngine:
                         if self._abort_flag.is_set:
                             # Full session abort — keep video, mark aborted
                             self.excel_logger.log_trial(
-                                item.subject, shape.value, item.rep,
+                                item.subject, shape_name, item.rep,
                                 "aborted", str(video_path.name),
                             )
                             all_ok = False
@@ -348,7 +368,7 @@ class ExperimentEngine:
                             continue  # Retry same shape
                     else:
                         w.trial_completed.emit(
-                            item.subject, shape.value, item.rep, "completed",
+                            item.subject, shape_name, item.rep, "completed",
                         )
                         shape_idx += 1  # Advance to next shape
 

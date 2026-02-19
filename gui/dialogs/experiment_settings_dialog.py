@@ -1,15 +1,18 @@
-"""Experiment settings dialog: shapes, reps, timing, output folder."""
+"""Experiment settings dialog: shapes, reps, timing, stimulus, output folder."""
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QGroupBox,
     QSpinBox, QDoubleSpinBox, QCheckBox, QPushButton, QLabel,
-    QFileDialog, QLineEdit, QToolButton, QMessageBox,
+    QFileDialog, QLineEdit, QToolButton, QMessageBox, QColorDialog,
+    QListWidget, QListWidgetItem, QRadioButton, QButtonGroup,
+    QScrollArea, QWidget,
 )
 
 from config.settings import ExperimentConfig
@@ -51,29 +54,111 @@ class ExperimentSettingsDialog(QDialog):
     def __init__(self, config: ExperimentConfig, memory: AppMemory, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Experiment Settings")
-        self.setMinimumWidth(550)
+        self.setMinimumWidth(600)
         self._config = config
         self._memory = memory
         self._shape_checks: dict[str, QCheckBox] = {}
+        self._selected_color = QColor(config.stimulus.color_hex)
+        self._image_paths: List[str] = list(config.stimulus.image_paths)
         self._build_ui()
         self._load_from_memory()
 
     def _build_ui(self) -> None:
+        outer = QVBoxLayout()
+
+        # Scrollable content
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        content = QWidget()
         layout = QVBoxLayout()
 
-        # Shapes
-        shapes_group = QGroupBox("Shapes")
-        shapes_layout = QHBoxLayout()
+        # ── Stimulus mode ──
+        stim_group = QGroupBox("Stimulus Mode")
+        stim_layout = QVBoxLayout()
+
+        self._mode_group = QButtonGroup(self)
+        self._radio_shapes = QRadioButton("Use shapes")
+        self._radio_images = QRadioButton("Use images")
+        self._mode_group.addButton(self._radio_shapes, 0)
+        self._mode_group.addButton(self._radio_images, 1)
+        if self._config.stimulus.use_images and self._config.stimulus.image_paths:
+            self._radio_images.setChecked(True)
+        else:
+            self._radio_shapes.setChecked(True)
+
+        mode_row = QHBoxLayout()
+        mode_row.addWidget(self._radio_shapes)
+        mode_row.addWidget(self._radio_images)
+        stim_layout.addLayout(mode_row)
+
+        # ── Shape options (visible when shapes mode selected) ──
+        self._shapes_widget = QWidget()
+        shapes_inner = QVBoxLayout()
+        shapes_inner.setContentsMargins(0, 0, 0, 0)
+
+        shapes_row = QHBoxLayout()
         for name in self.SHAPE_OPTIONS:
             cb = QCheckBox(name.capitalize())
             cb.setChecked(name in self._config.shapes)
             cb.setToolTip("Select which shapes will be presented during training")
             self._shape_checks[name] = cb
-            shapes_layout.addWidget(cb)
-        shapes_group.setLayout(shapes_layout)
-        layout.addWidget(shapes_group)
+            shapes_row.addWidget(cb)
+        shapes_inner.addLayout(shapes_row)
 
-        # Repetitions and timing
+        # Color picker
+        color_row = QHBoxLayout()
+        color_row.addWidget(QLabel("Shape color:"))
+        self._color_preview = QLabel()
+        self._color_preview.setFixedSize(32, 24)
+        self._update_color_preview()
+        color_row.addWidget(self._color_preview)
+        self._color_btn = QPushButton("Choose Color...")
+        self._color_btn.clicked.connect(self._pick_color)
+        color_row.addWidget(self._color_btn)
+        color_row.addWidget(_tooltip_btn(
+            "Pick the exact color for shape stimuli. Default: white (#FFFFFF). "
+            "Adjusting this also controls brightness (darker = dimmer)."))
+        color_row.addStretch()
+        shapes_inner.addLayout(color_row)
+
+        self._shapes_widget.setLayout(shapes_inner)
+        stim_layout.addWidget(self._shapes_widget)
+
+        # ── Image options (visible when images mode selected) ──
+        self._images_widget = QWidget()
+        images_inner = QVBoxLayout()
+        images_inner.setContentsMargins(0, 0, 0, 0)
+
+        self._image_list = QListWidget()
+        self._image_list.setMaximumHeight(100)
+        for path in self._image_paths:
+            self._image_list.addItem(Path(path).name)
+        images_inner.addWidget(self._image_list)
+
+        img_btn_row = QHBoxLayout()
+        add_img_btn = QPushButton("Add Image...")
+        add_img_btn.clicked.connect(self._add_image)
+        img_btn_row.addWidget(add_img_btn)
+        remove_img_btn = QPushButton("Remove Selected")
+        remove_img_btn.clicked.connect(self._remove_image)
+        img_btn_row.addWidget(remove_img_btn)
+        img_btn_row.addWidget(_tooltip_btn(
+            "Add image files (PNG, JPG, BMP, GIF, TIFF) to use as stimuli "
+            "instead of shapes. Each image is presented in sequence like shapes."))
+        img_btn_row.addStretch()
+        images_inner.addLayout(img_btn_row)
+
+        self._images_widget.setLayout(images_inner)
+        stim_layout.addWidget(self._images_widget)
+
+        stim_group.setLayout(stim_layout)
+        layout.addWidget(stim_group)
+
+        # Toggle visibility based on mode
+        self._radio_shapes.toggled.connect(self._on_stim_mode_changed)
+        self._on_stim_mode_changed(self._radio_shapes.isChecked())
+
+        # ── Repetitions and timing ──
         form = QFormLayout()
 
         self._reps = QSpinBox()
@@ -117,6 +202,16 @@ class ExperimentSettingsDialog(QDialog):
             self._train_reps,
             "Number of shape+beep presentations per training phase"))
 
+        self._train_to_meas_delay = QDoubleSpinBox()
+        self._train_to_meas_delay.setRange(0.0, 60.0)
+        self._train_to_meas_delay.setDecimals(1)
+        self._train_to_meas_delay.setSuffix(" s")
+        self._train_to_meas_delay.setValue(t.training_to_measurement_delay)
+        form.addRow("Training→Measurement delay:", _row_with_tooltip(
+            self._train_to_meas_delay,
+            "Extra delay (seconds) between the training phase and the "
+            "measurement phase. 0 = no extra delay (default)."))
+
         self._meas_beep_dur = QDoubleSpinBox()
         self._meas_beep_dur.setRange(0.1, 10.0)
         self._meas_beep_dur.setDecimals(1)
@@ -155,6 +250,10 @@ class ExperimentSettingsDialog(QDialog):
         folder_group.setLayout(folder_layout)
         layout.addWidget(folder_group)
 
+        content.setLayout(layout)
+        scroll.setWidget(content)
+        outer.addWidget(scroll)
+
         # Buttons
         btn_layout = QHBoxLayout()
 
@@ -169,8 +268,44 @@ class ExperimentSettingsDialog(QDialog):
         next_btn.clicked.connect(self._on_next)
         btn_layout.addWidget(next_btn)
 
-        layout.addLayout(btn_layout)
-        self.setLayout(layout)
+        outer.addLayout(btn_layout)
+        self.setLayout(outer)
+
+    # ── Stimulus mode helpers ──
+
+    def _on_stim_mode_changed(self, shapes_checked: bool) -> None:
+        self._shapes_widget.setVisible(shapes_checked)
+        self._images_widget.setVisible(not shapes_checked)
+
+    def _update_color_preview(self) -> None:
+        self._color_preview.setStyleSheet(
+            f"background-color: {self._selected_color.name()}; "
+            f"border: 1px solid #666;"
+        )
+
+    def _pick_color(self) -> None:
+        color = QColorDialog.getColor(
+            self._selected_color, self, "Choose Shape Color"
+        )
+        if color.isValid():
+            self._selected_color = color
+            self._update_color_preview()
+
+    def _add_image(self) -> None:
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "Select Stimulus Image(s)", "",
+            "Images (*.png *.jpg *.jpeg *.bmp *.gif *.tiff *.tif)"
+        )
+        for p in paths:
+            if p not in self._image_paths:
+                self._image_paths.append(p)
+                self._image_list.addItem(Path(p).name)
+
+    def _remove_image(self) -> None:
+        row = self._image_list.currentRow()
+        if row >= 0:
+            self._image_paths.pop(row)
+            self._image_list.takeItem(row)
 
     def _load_from_memory(self) -> None:
         """Pre-populate from AppMemory if available."""
@@ -195,12 +330,26 @@ class ExperimentSettingsDialog(QDialog):
                 self._train_blank_dur.setValue(timing["training_blank_duration"])
             if "training_repetitions" in timing:
                 self._train_reps.setValue(timing["training_repetitions"])
+            if "training_to_measurement_delay" in timing:
+                self._train_to_meas_delay.setValue(timing["training_to_measurement_delay"])
             if "measurement_beep_duration" in timing:
                 self._meas_beep_dur.setValue(timing["measurement_beep_duration"])
             if "measurement_silence_duration" in timing:
                 self._meas_silence_dur.setValue(timing["measurement_silence_duration"])
             if "measurement_repetitions" in timing:
                 self._meas_reps.setValue(timing["measurement_repetitions"])
+            # Stimulus settings
+            stim = ls.get("stimulus", {})
+            if "color_hex" in stim:
+                self._selected_color = QColor(stim["color_hex"])
+                self._update_color_preview()
+            if "use_images" in stim and stim["use_images"]:
+                self._radio_images.setChecked(True)
+            if "image_paths" in stim and stim["image_paths"]:
+                self._image_paths = list(stim["image_paths"])
+                self._image_list.clear()
+                for p in self._image_paths:
+                    self._image_list.addItem(Path(p).name)
 
     def _browse_folder(self) -> None:
         folder = QFileDialog.getExistingDirectory(
@@ -240,7 +389,13 @@ class ExperimentSettingsDialog(QDialog):
         config.timing.training_shape_duration = self._train_shape_dur.value()
         config.timing.training_blank_duration = self._train_blank_dur.value()
         config.timing.training_repetitions = self._train_reps.value()
+        config.timing.training_to_measurement_delay = self._train_to_meas_delay.value()
         config.timing.measurement_beep_duration = self._meas_beep_dur.value()
         config.timing.measurement_silence_duration = self._meas_silence_dur.value()
         config.timing.measurement_repetitions = self._meas_reps.value()
         config.output_base_dir = self._folder_edit.text()
+
+        # Stimulus settings
+        config.stimulus.color_hex = self._selected_color.name().upper()
+        config.stimulus.use_images = self._radio_images.isChecked()
+        config.stimulus.image_paths = list(self._image_paths)

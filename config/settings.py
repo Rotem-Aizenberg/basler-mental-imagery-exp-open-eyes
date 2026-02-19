@@ -36,6 +36,7 @@ class TimingSettings:
     measurement_silence_duration: float = 0.5
     measurement_repetitions: int = 5
     transition_cue_duration: float = 0.5
+    training_to_measurement_delay: float = 0.0  # Extra delay (sec) between training and measurement
 
     @property
     def training_phase_duration(self) -> float:
@@ -69,6 +70,14 @@ class AudioSettings:
 
 
 @dataclass
+class StimulusSettings:
+    """Visual stimulus appearance parameters."""
+    color_hex: str = "#FFFFFF"       # Shape fill/line colour as hex RGB
+    use_images: bool = False         # True → use image files instead of shapes
+    image_paths: List[str] = field(default_factory=list)  # Paths to image stimuli
+
+
+@dataclass
 class ExperimentConfig:
     """Top-level experiment configuration with JSON load/save/validate."""
     shapes: List[str] = field(default_factory=lambda: [
@@ -79,6 +88,7 @@ class ExperimentConfig:
     camera: CameraSettings = field(default_factory=CameraSettings)
     timing: TimingSettings = field(default_factory=TimingSettings)
     audio: AudioSettings = field(default_factory=AudioSettings)
+    stimulus: StimulusSettings = field(default_factory=StimulusSettings)
     dev_mode: bool = False
     output_base_dir: str = ""
     instruction_audio_dir: str = "external_instruction_recordings"
@@ -92,7 +102,10 @@ class ExperimentConfig:
     def validate(self) -> List[str]:
         """Return list of validation error strings (empty = valid)."""
         errors = []
-        if not self.shapes:
+        if self.stimulus.use_images:
+            if not self.stimulus.image_paths:
+                errors.append("At least one image must be added in image mode.")
+        elif not self.shapes:
             errors.append("At least one shape must be selected.")
         if self.repetitions < 1:
             errors.append("Repetitions must be >= 1.")
@@ -146,6 +159,12 @@ class ExperimentConfig:
             if k in AudioSettings.__dataclass_fields__
         })
 
+        stim_data = data.get("stimulus", {})
+        stimulus = StimulusSettings(**{
+            k: v for k, v in stim_data.items()
+            if k in StimulusSettings.__dataclass_fields__
+        })
+
         return cls(
             shapes=data.get("shapes", cls.__dataclass_fields__["shapes"].default_factory()),
             repetitions=data.get("repetitions", 5),
@@ -153,6 +172,7 @@ class ExperimentConfig:
             camera=cam,
             timing=timing,
             audio=audio,
+            stimulus=stimulus,
             dev_mode=data.get("dev_mode", False),
             output_base_dir=data.get("output_base_dir", ""),
             instruction_audio_dir=data.get(

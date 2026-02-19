@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Union
 
 from .enums import Shape
 
@@ -13,7 +13,7 @@ class QueueItem:
     """One entry in the session queue: a subject's full shape set for one rep."""
     subject: str
     rep: int
-    shapes: List[Shape] = field(default_factory=list)
+    shapes: List[Union[Shape, str]] = field(default_factory=list)
     completed: bool = False
 
     @property
@@ -30,6 +30,9 @@ class SessionQueue:
         ...
     Each queue item contains all shapes for that subject+rep,
     optionally repeated ``shape_reps_per_subsession`` times.
+
+    Supports both Shape enums (for geometric shapes) and plain strings
+    (for image stimuli).
     """
 
     def __init__(
@@ -38,19 +41,22 @@ class SessionQueue:
         repetitions: int,
         shapes: List[str],
         shape_reps_per_subsession: int = 1,
+        use_raw_names: bool = False,
     ):
         self._items: List[QueueItem] = []
-        shape_enums = [Shape.from_string(s) for s in shapes]
 
-        # Build the shape list: shapes * shape_reps_per_subsession
-        expanded_shapes = list(shape_enums) * shape_reps_per_subsession
+        if use_raw_names:
+            expanded = list(shapes) * shape_reps_per_subsession
+        else:
+            shape_enums = [Shape.from_string(s) for s in shapes]
+            expanded = list(shape_enums) * shape_reps_per_subsession
 
         for rep in range(1, repetitions + 1):
             for subj in subjects:
                 self._items.append(QueueItem(
                     subject=subj,
                     rep=rep,
-                    shapes=list(expanded_shapes),
+                    shapes=list(expanded),
                 ))
 
         self._index = 0
